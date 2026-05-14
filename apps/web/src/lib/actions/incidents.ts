@@ -24,10 +24,17 @@ export async function getIncidents() {
   return data;
 }
 
-export async function updateIncidentStatus(id: string, estado: string, notas: string = '') {
+interface IncidentUpdate {
+  estado: 'nuevo' | 'revisado' | 'cerrado';
+  notas_cierre?: string;
+  cerrado_at?: string;
+  supervisor_id?: string;
+}
+
+export async function updateIncidentStatus(id: string, estado: 'nuevo' | 'revisado' | 'cerrado', notas: string = '') {
   const { data: { user } } = await supabase.auth.getUser();
   
-  const updateData: any = { 
+  const updateData: IncidentUpdate = { 
     estado,
     notas_cierre: notas 
   };

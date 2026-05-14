@@ -1,14 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, Modal, Alert, ActivityIndicator } from 'react-native';
 import { Shield, QrCode, ClipboardList, AlertTriangle, LogOut, Play, CheckCircle2 } from 'lucide-react-native';
+import * as SQLite from 'expo-sqlite';
 import { supabase } from '../lib/supabase';
 import ScannerScreen from './ScannerScreen';
 import { useSync } from '../hooks/useSync';
 import { useRound } from '../hooks/useRound';
 
+interface Assignment {
+  id: string;
+  turno: {
+    id: string;
+    nombre: string;
+    establecimiento: {
+      id: string;
+      nombre: string;
+    };
+    intervalo_ronda_min: number;
+  };
+}
+
+interface ControlPoint {
+  id: string;
+  nombre: string;
+}
+
 export default function MainDashboard() {
   const [isScannerOpen, setIsScannerOpen] = useState(false);
-  const [assignment, setAssignment] = useState<any>(null);
+  const [assignment, setAssignment] = useState<Assignment | null>(null);
   const [loadingAssignment, setLoadingAssignment] = useState(true);
   const { isSyncing, syncData } = useSync();
   const { activeRound, scannedPoints, startRound, saveScan, finishRound, loading: loadingRound } = useRound();
@@ -70,7 +89,7 @@ export default function MainDashboard() {
         .single();
 
       if (error) throw error;
-      setAssignment(data);
+      setAssignment(data as unknown as Assignment);
     } catch (error) {
       console.error('Error fetching assignment:', error);
     } finally {
@@ -102,7 +121,7 @@ export default function MainDashboard() {
       const db = await SQLite.openDatabaseAsync('guardtrack.db');
       
       // Validate QR Token locally
-      const point = await db.getFirstAsync<any>(
+      const point = await db.getFirstAsync<ControlPoint>(
         'SELECT id, nombre FROM puntos_control_local WHERE qr_token = ?',
         [token]
       );

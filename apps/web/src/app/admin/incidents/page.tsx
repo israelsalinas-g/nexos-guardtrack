@@ -1,6 +1,5 @@
-import { AlertCircle, CheckCircle2, Clock, Eye, MessageSquare } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Clock } from 'lucide-react';
 import { getIncidents, updateIncidentStatus } from '@/lib/actions/incidents';
-import { revalidatePath } from 'next/cache';
 
 export default async function IncidentsPage() {
   const incidents = await getIncidents();
@@ -34,7 +33,19 @@ export default async function IncidentsPage() {
   );
 }
 
-function IncidentCard({ incident }: { incident: any }) {
+interface Incident {
+  id: string;
+  tipo: string;
+  descripcion: string;
+  estado: string;
+  created_at: string;
+  ronda?: {
+    establecimiento?: { nombre: string };
+    guardia?: { nombre: string };
+  };
+}
+
+function IncidentCard({ incident }: { incident: Incident }) {
   const statusColors = {
     nuevo: '#f43f5e',
     revisado: '#f59e0b',
@@ -85,7 +96,7 @@ function IncidentCard({ incident }: { incident: any }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
         {incident.estado !== 'cerrado' ? (
           <>
-            <form action={async (formData) => {
+            <form action={async () => {
               'use server';
               await updateIncidentStatus(incident.id, incident.estado === 'nuevo' ? 'revisado' : 'cerrado');
             }}>
