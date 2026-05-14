@@ -1,38 +1,150 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, Modal, Alert } from 'react-native';
-import { Shield, QrCode, ClipboardList, AlertTriangle, LogOut } from 'lucide-react-native';
-import * as SQLite from 'expo-sqlite';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, Modal, Alert, ActivityIndicator } from 'react-native';
+import { Shield, QrCode, ClipboardList, AlertTriangle, LogOut, Play, CheckCircle2 } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
 import ScannerScreen from './ScannerScreen';
 import { useSync } from '../hooks/useSync';
+import { useRound } from '../hooks/useRound';
 
 export default function MainDashboard() {
   const [isScannerOpen, setIsScannerOpen] = useState(false);
-  const { isSyncing } = useSync();
+  const [assignment, setAssignment] = useState<any>(null);
+  const [loadingAssignment, setLoadingAssignment] = useState(true);
+  const { isSyncing, syncData } = useSync();
+  const { activeRound, scannedPoints, startRound, saveScan, finishRound, loading: loadingRound } = useRound();
 
-  const handleLogout = () => supabase.auth.signOut();
+  useEffect(() => {
+    fetchAssignment();
+    downloadControlPoints();
+  }, []);
 
-  const handleScan = async (token: string) => {
-    setIsScannerOpen(false);
-    
+  const downloadControlPoints = async () => {
     try {
       const db = await SQLite.openDatabaseAsync('guardtrack.db');
       
-      // Simulate finding a point by token
-      // In a real app, we would have pre-downloaded control points for the establishment
-      const scanId = Math.random().toString(36).substring(7);
-      
-      await db.runAsync(
-        'INSERT INTO escaneos_local (id, ronda_id, punto_id, timestamp, sincronizado) VALUES (?, ?, ?, ?, ?)',
-        [scanId, 'active-round-id', token, Date.now(), 0]
-      );
+      // Get establishment from assignment if possible, or just fetch all for now
+      const { data: points, error } = await supabase
+        .from('puntos_control')
+        .select('id, establecimiento_id, nombre, qr_token')
+        .eq('activo', true);
 
-      Alert.alert('Éxito', 'Punto de control escaneado correctamente.');
+      if (error) throw error;
+
+      // Update local storage
+      if (points) {
+        // Clear old ones or just upsert
+        for (const p of points) {
+          await db.runAsync(
+            'INSERT OR REPLACE INTO puntos_control_local (id, establecimiento_id, nombre, qr_token) VALUES (?, ?, ?, ?)',
+            [p.id, p.establecimiento_id, p.nombre, p.qr_token]
+          );
+        }
+      }
     } catch (error) {
-      console.error('Error saving scan:', error);
-      Alert.alert('Error', 'No se pudo guardar el escaneo localmente.');
+      console.error('Error downloading control points:', error);
     }
   };
+
+  const fetchAssignment = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Fetch active assignment for this guard
+      const { data, error } = await supabase
+        .from('asignaciones')
+        .select(`
+          id,
+          turno:turnos (
+            id,
+            nombre,
+            establecimiento:establecimientos (
+              id,
+              nombre
+            ),
+            intervalo_ronda_min
+          )
+        `)
+        .eq('guardia_id', user.id)
+        .eq('activo', true)
+        .single();
+
+      if (error) throw error;
+      setAssignment(data);
+    } catch (error) {
+      console.error('Error fetching assignment:', error);
+    } finally {
+      setLoadingAssignment(false);
+    }
+  };
+
+  const handleLogout = () => supabase.auth.signOut();
+
+  const handleStartRound = async () => {
+    if (!assignment) {
+      Alert.alert('Error', 'No tienes un turno asignado para iniciar una ronda.');
+      return;
+    }
+
+    try {
+      await startRound(assignment.turno.id, assignment.turno.establecimiento.id);
+      syncData(); // Try to sync round start
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo iniciar la ronda.');
+    }
+  };
+
+  const handleScan = async (token: string) => {
+    setIsScannerOpen(false);
+    if (!activeRound) return;
+
+    try {
+      const db = await SQLite.openDatabaseAsync('guardtrack.db');
+      
+      // Validate QR Token locally
+      const point = await db.getFirstAsync<any>(
+        'SELECT id, nombre FROM puntos_control_local WHERE qr_token = ?',
+        [token]
+      );
+
+      if (!point) {
+        Alert.alert('Error', 'Código QR no reconocido para este establecimiento.');
+        return;
+      }
+
+      await saveScan(point.id);
+      Alert.alert('Éxito', `Punto detectado: ${point.nombre}`);
+      syncData(); 
+    } catch (error) {
+      console.error('Scan Error:', error);
+      Alert.alert('Error', 'No se pudo procesar el escaneo.');
+    }
+  };
+
+  const handleFinishRound = async () => {
+    Alert.alert(
+      'Finalizar Ronda',
+      '¿Estás seguro de que deseas finalizar la ronda actual?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { 
+          text: 'Finalizar', 
+          onPress: async () => {
+            await finishRound();
+            syncData();
+          } 
+        }
+      ]
+    );
+  };
+
+  if (loadingAssignment || loadingRound) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color="#38bdf8" />
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -49,21 +161,52 @@ export default function MainDashboard() {
 
       {/* Hero / Status Card */}
       <View style={styles.statusCard}>
-        <Text style={styles.statusTitle}>Ronda Actual</Text>
-        <Text style={styles.statusTime}>En Curso</Text>
-        <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: '60%' }]} />
-        </View>
-        <Text style={styles.statusSub}>Edificio Principal • 6/10 puntos</Text>
+        <Text style={styles.statusTitle}>
+          {assignment?.turno?.establecimiento?.nombre || 'Sin Establecimiento'}
+        </Text>
+        
+        {!activeRound ? (
+          <>
+            <Text style={styles.statusMain}>Sin Ronda Activa</Text>
+            <TouchableOpacity style={styles.startBtn} onPress={handleStartRound}>
+              <Play color="#fff" size={24} fill="#fff" />
+              <Text style={styles.startBtnText}>Iniciar Nueva Ronda</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            <View style={styles.statusHeader}>
+              <Text style={styles.statusMain}>Ronda en Curso</Text>
+              <TouchableOpacity onPress={handleFinishRound}>
+                <CheckCircle2 color="#10b981" size={28} />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.progressBar}>
+              <View 
+                style={[
+                  styles.progressFill, 
+                  { width: `${Math.min(100, (scannedPoints.length / 5) * 100)}%` } 
+                ]} 
+              />
+            </View>
+            <Text style={styles.statusSub}>
+              {scannedPoints.length} puntos registrados • {assignment?.turno?.nombre}
+            </Text>
+          </>
+        )}
       </View>
 
       {/* Actions Grid */}
       <View style={styles.grid}>
-        <TouchableOpacity style={styles.actionButton} onPress={() => setIsScannerOpen(true)}>
+        <TouchableOpacity 
+          style={[styles.actionButton, !activeRound && styles.actionButtonDisabled]} 
+          onPress={() => activeRound && setIsScannerOpen(true)}
+          disabled={!activeRound}
+        >
           <View style={[styles.iconBg, { backgroundColor: 'rgba(56, 189, 248, 0.1)' }]}>
-            <QrCode color="#38bdf8" size={28} />
+            <QrCode color={activeRound ? "#38bdf8" : "#475569"} size={28} />
           </View>
-          <Text style={styles.actionText}>Escanear QR</Text>
+          <Text style={[styles.actionText, !activeRound && styles.actionTextDisabled]}>Escanear QR</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.actionButton}>
@@ -104,6 +247,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#020617',
     padding: 20,
   },
+  centered: {
+    flex: 1,
+    backgroundColor: '#020617',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -140,17 +289,40 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 8,
   },
-  statusTime: {
+  statusHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  statusMain: {
     color: '#fff',
-    fontSize: 42,
+    fontSize: 32,
     fontWeight: 'bold',
-    marginBottom: 20,
+    marginBottom: 15,
+  },
+  startBtn: {
+    flexDirection: 'row',
+    backgroundColor: '#38bdf8',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    marginTop: 10,
+  },
+  startBtnText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
   },
   progressBar: {
     height: 8,
     backgroundColor: '#1e293b',
     borderRadius: 4,
     marginBottom: 12,
+    marginTop: 5,
   },
   progressFill: {
     height: '100%',
@@ -176,6 +348,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.05)',
   },
+  actionButtonDisabled: {
+    opacity: 0.5,
+  },
   iconBg: {
     width: 60,
     height: 60,
@@ -189,6 +364,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  actionTextDisabled: {
+    color: '#475569',
+  },
   footer: {
     marginTop: 'auto',
     alignItems: 'center',
@@ -199,3 +377,4 @@ const styles = StyleSheet.create({
     fontSize: 12,
   }
 });
+

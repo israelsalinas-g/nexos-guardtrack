@@ -7,6 +7,11 @@ export function useSync() {
 
   const syncData = async () => {
     if (isSyncing) return;
+    
+    // Check session
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
     setIsSyncing(true);
 
     try {
@@ -18,16 +23,21 @@ export function useSync() {
       );
 
       for (const round of pendingRounds) {
+        const isoDate = new Date(round.inicio_real).toISOString();
         const { error } = await supabase.from('rondas').upsert({
           id: round.id,
+          guardia_id: user.id,
           turno_id: round.turno_id,
           establecimiento_id: round.establecimiento_id,
-          inicio_real: new Date(round.inicio_real).toISOString(),
+          inicio_programado: isoDate, // Use actual start as scheduled for now
+          inicio_real: isoDate,
           estado: round.estado
         });
 
         if (!error) {
           await db.runAsync('UPDATE rondas_local SET sincronizado = 1 WHERE id = ?', [round.id]);
+        } else {
+          console.error('Error syncing round:', error);
         }
       }
 
@@ -40,12 +50,15 @@ export function useSync() {
         const { error } = await supabase.from('escaneos').insert({
           ronda_id: scan.ronda_id,
           punto_control_id: scan.punto_id,
+          guardia_id: user.id,
           timestamp_escaneo: new Date(scan.timestamp).toISOString(),
           offline: true
         });
 
         if (!error) {
           await db.runAsync('UPDATE escaneos_local SET sincronizado = 1 WHERE id = ?', [scan.id]);
+        } else {
+          console.error('Error syncing scan:', error);
         }
       }
 

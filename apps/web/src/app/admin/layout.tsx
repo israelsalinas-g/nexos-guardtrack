@@ -1,8 +1,14 @@
+'use client';
+
 import Image from 'next/image';
-import { LayoutDashboard, Map, Users, Settings, LogOut, Bell } from 'lucide-react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { LayoutDashboard, Map, Users, Settings, LogOut, Bell, AlertCircle } from 'lucide-react';
 import '../globals.css';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#020617' }}>
       {/* Sidebar */}
@@ -26,8 +32,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
 
         <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-          <NavItem icon={<LayoutDashboard size={20} />} label="Dashboard" active />
-          <NavItem icon={<Map size={20} />} label="Establecimientos" />
+          <Link href="/admin" style={{ textDecoration: 'none' }}>
+            <NavItem icon={<LayoutDashboard size={20} />} label="Dashboard" active={pathname === '/admin'} />
+          </Link>
+          <Link href="/admin/establishments" style={{ textDecoration: 'none' }}>
+            <NavItem icon={<Map size={20} />} label="Establecimientos" active={pathname?.startsWith('/admin/establishments')} />
+          </Link>
+          <Link href="/admin/incidents" style={{ textDecoration: 'none' }}>
+            <NavItem icon={<AlertCircle size={20} />} label="Incidentes" active={pathname?.startsWith('/admin/incidents')} />
+          </Link>
           <NavItem icon={<Users size={20} />} label="Usuarios" />
           <NavItem icon={<Settings size={20} />} label="Configuración" />
         </nav>
