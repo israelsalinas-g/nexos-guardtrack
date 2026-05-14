@@ -1,4 +1,5 @@
-import { Shield, LayoutDashboard, Map, Users, Settings, LogOut, Bell } from 'lucide-react';
+import Image from 'next/image';
+import { LayoutDashboard, Map, Users, Settings, LogOut, Bell } from 'lucide-react';
 import '../globals.css';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -14,8 +15,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         gap: '2.5rem'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <Shield color="#38bdf8" />
-          <h2 style={{ fontSize: '1.25rem' }}>GuardTrack</h2>
+          <Image 
+            src="/assets/logo_nexos_guardtrack.png" 
+            alt="Logo" 
+            width={32}
+            height={32}
+            style={{ width: 'auto' }}
+          />
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>GuardTrack</h2>
         </div>
 
         <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>

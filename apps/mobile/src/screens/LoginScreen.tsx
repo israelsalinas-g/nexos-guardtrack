@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Alert } from 'react-native';
-import { Shield, Eye, EyeOff } from 'lucide-react-native';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Alert, Image } from 'react-native';
+import { Eye, EyeOff } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
+
+// Assets
+const LOGO = require('../../assets/logo_nexos_guardtrack.png');
 
 export default function LoginScreen({ onLoginSuccess }: { onLoginSuccess: () => void }) {
   const [email, setEmail] = useState('');
@@ -30,11 +33,13 @@ export default function LoginScreen({ onLoginSuccess }: { onLoginSuccess: () => 
     >
       <View style={styles.content}>
         <View style={styles.header}>
-          <View style={styles.iconContainer}>
-            <Shield size={48} color="#38bdf8" />
-          </View>
+          <Image 
+            source={LOGO} 
+            style={styles.logo} 
+            resizeMode="contain"
+          />
           <Text style={styles.title}>GuardTrack</Text>
-          <Text style={styles.subtitle}>Acceso de Seguridad</Text>
+          <Text style={styles.subtitle}>Sistema de Control de Rondas</Text>
         </View>
 
         <View style={styles.form}>
@@ -95,13 +100,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 48,
   },
-  iconContainer: {
-    width: 80,
-    height: 80,
-    backgroundColor: 'rgba(56, 189, 248, 0.1)',
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
+  logo: {
+    width: 120,
+    height: 120,
     marginBottom: 16,
   },
   title: {
@@ -112,7 +113,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 16,
-    color: '#64748b',
+    color: '#94a3b8',
     marginTop: 4,
   },
   form: {

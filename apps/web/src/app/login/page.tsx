@@ -1,4 +1,4 @@
-import { Shield } from 'lucide-react';
+import Image from 'next/image';
 import '../globals.css';
 
 export default function LoginPage() {
@@ -14,14 +14,17 @@ export default function LoginPage() {
         <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
           <div style={{ 
             display: 'inline-flex', 
-            padding: '1rem', 
-            background: 'rgba(56, 189, 248, 0.1)', 
-            borderRadius: '1rem',
             marginBottom: '1rem'
           }}>
-            <Shield size={40} color="#38bdf8" />
+            <Image 
+              src="/assets/logo_nexos_guardtrack.png" 
+              alt="Nexos GuardTrack Logo" 
+              width={160}
+              height={80}
+              style={{ objectFit: 'contain' }} 
+            />
           </div>
-          <h2 style={{ fontSize: '1.875rem' }}>Bienvenido</h2>
+          <h2 style={{ fontSize: '1.875rem', marginTop: '0.5rem' }}>Bienvenido</h2>
           <p className="muted">Ingresa tus credenciales para continuar</p>
         </div>
 
