@@ -190,7 +190,7 @@ async function syncIncident(
     tipo: incident.tipo,
     descripcion: incident.descripcion,
     estado: 'nuevo',
-    reportado_por: userId,
+    reportado_por: userId,   // columna añadida en migración 20260515
     created_at: new Date(incident.created_at).toISOString(),
   };
   if (incident.ronda_id) payload.ronda_id = incident.ronda_id;
