@@ -3,9 +3,11 @@ import { StyleSheet, Text, View, TouchableOpacity, Modal, Alert, ActivityIndicat
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Shield, QrCode, ClipboardList, AlertTriangle, LogOut, Play, CheckCircle2 } from 'lucide-react-native';
 import * as SQLite from 'expo-sqlite';
+import { File, Directory, Paths } from 'expo-file-system';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { getCurrentPosition } from '../hooks/useGeolocation';
 import ScannerScreen from './ScannerScreen';
 import { useNetSync } from '../hooks/useNetSync';
 import { useRound } from '../hooks/useRound';
@@ -34,6 +36,7 @@ export default function MainDashboard() {
   const navigation = useNavigation<GuardNavProp>();
   const { signOut } = useAuth();
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [scanSessionId, setScanSessionId] = useState(0);
   const [assignment, setAssignment] = useState<Assignment | null>(null);
   const [loadingAssignment, setLoadingAssignment] = useState(true);
   const { isSyncing, pendingCount, failedCount, syncNow } = useNetSync();
@@ -120,14 +123,12 @@ export default function MainDashboard() {
     }
   };
 
-  const handleScan = async (token: string) => {
+  const handleScan = async (token: string, photoUri?: string) => {
     setIsScannerOpen(false);
     if (!activeRound) return;
 
     try {
       const db = await SQLite.openDatabaseAsync('guardtrack.db');
-      
-      // Validate QR Token locally
       const point = await db.getFirstAsync<ControlPoint>(
         'SELECT id, nombre FROM puntos_control_local WHERE qr_token = ?',
         [token]
@@ -138,9 +139,28 @@ export default function MainDashboard() {
         return;
       }
 
-      await saveScan(point.id);
-      Alert.alert('Éxito', `Punto detectado: ${point.nombre}`);
-      syncNow(); 
+      // Geolocation — best effort, never blocks scan
+      const geo = await getCurrentPosition();
+
+      // Save scan record (returns scanId)
+      const scanId = await saveScan(point.id, geo?.lat, geo?.lng, null);
+
+      // Persist photo to app document directory, then update record
+      if (photoUri) {
+        try {
+          const scansDir = new Directory(Paths.document, 'scans');
+          if (!scansDir.exists) scansDir.create({ intermediates: true });
+          const destFile = new File(Paths.document, 'scans', `${scanId}.jpg`);
+          new File(photoUri).move(destFile);
+          await db.runAsync('UPDATE escaneos_local SET foto_path = ? WHERE id = ?', [destFile.uri, scanId]);
+        } catch (photoErr) {
+          console.error('Error saving photo:', photoErr);
+          // Scan already recorded — photo failure is non-fatal
+        }
+      }
+
+      Alert.alert('Éxito', `Punto registrado: ${point.nombre}`);
+      syncNow();
     } catch (error) {
       console.error('Scan Error:', error);
       Alert.alert('Error', 'No se pudo procesar el escaneo.');
@@ -224,9 +244,13 @@ export default function MainDashboard() {
 
       {/* Actions Grid */}
       <View style={styles.grid}>
-        <TouchableOpacity 
-          style={[styles.actionButton, !activeRound && styles.actionButtonDisabled]} 
-          onPress={() => activeRound && setIsScannerOpen(true)}
+        <TouchableOpacity
+          style={[styles.actionButton, !activeRound && styles.actionButtonDisabled]}
+          onPress={() => {
+            if (!activeRound) return;
+            setScanSessionId(id => id + 1);
+            setIsScannerOpen(true);
+          }}
           disabled={!activeRound}
         >
           <View style={[styles.iconBg, { backgroundColor: 'rgba(56, 189, 248, 0.1)' }]}>
@@ -255,11 +279,12 @@ export default function MainDashboard() {
         <Text style={styles.footerText}>v1.0.0</Text>
       </View>
 
-      {/* Scanner Modal */}
+      {/* Scanner Modal — key fuerza remount en cada apertura para resetear fases */}
       <Modal visible={isScannerOpen} animationType="slide">
-        <ScannerScreen 
-          onScan={handleScan} 
-          onClose={() => setIsScannerOpen(false)} 
+        <ScannerScreen
+          key={scanSessionId}
+          onScan={handleScan}
+          onClose={() => setIsScannerOpen(false)}
         />
       </Modal>
     </SafeAreaView>
