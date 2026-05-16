@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, Modal, Alert, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Modal, Alert, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Shield, QrCode, ClipboardList, AlertTriangle, LogOut, Play, CheckCircle2 } from 'lucide-react-native';
 import * as SQLite from 'expo-sqlite';
+import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 import ScannerScreen from './ScannerScreen';
 import { useSync } from '../hooks/useSync';
 import { useRound } from '../hooks/useRound';
+import type { GuardNavProp } from '../navigation/types';
 
 interface Assignment {
   id: string;
@@ -26,6 +30,8 @@ interface ControlPoint {
 }
 
 export default function MainDashboard() {
+  const navigation = useNavigation<GuardNavProp>();
+  const { signOut } = useAuth();
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [assignment, setAssignment] = useState<Assignment | null>(null);
   const [loadingAssignment, setLoadingAssignment] = useState(true);
@@ -97,7 +103,7 @@ export default function MainDashboard() {
     }
   };
 
-  const handleLogout = () => supabase.auth.signOut();
+  const handleLogout = () => signOut();
 
   const handleStartRound = async () => {
     if (!assignment) {
@@ -228,14 +234,14 @@ export default function MainDashboard() {
           <Text style={[styles.actionText, !activeRound && styles.actionTextDisabled]}>Escanear QR</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionButton}>
+        <TouchableOpacity style={styles.actionButton} onPress={() => navigation.navigate('History')}>
           <View style={[styles.iconBg, { backgroundColor: 'rgba(16, 185, 129, 0.1)' }]}>
             <ClipboardList color="#10b981" size={28} />
           </View>
           <Text style={styles.actionText}>Mi Historial</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={[styles.actionButton, { width: '100%' }]}>
+        <TouchableOpacity style={[styles.actionButton, { width: '100%' }]} onPress={() => navigation.navigate('IncidentReport')}>
           <View style={[styles.iconBg, { backgroundColor: 'rgba(244, 63, 94, 0.1)' }]}>
             <AlertTriangle color="#f43f5e" size={28} />
           </View>

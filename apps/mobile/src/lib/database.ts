@@ -41,6 +41,16 @@ export const initDatabase = async () => {
       ultimo_error TEXT,
       created_at INTEGER
     );
+
+    CREATE TABLE IF NOT EXISTS incidentes_local (
+      id TEXT PRIMARY KEY,
+      ronda_id TEXT,
+      tipo TEXT NOT NULL DEFAULT 'manual',
+      descripcion TEXT NOT NULL,
+      foto_path TEXT,
+      sincronizado INTEGER DEFAULT 0,
+      created_at INTEGER NOT NULL
+    );
   `);
 
   return db;

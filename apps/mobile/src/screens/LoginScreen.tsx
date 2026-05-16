@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabase';
 // Assets
 const LOGO = require('../../assets/logo_nexos_guardtrack.png');
 
-export default function LoginScreen({ onLoginSuccess }: { onLoginSuccess: () => void }) {
+export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -14,16 +14,15 @@ export default function LoginScreen({ onLoginSuccess }: { onLoginSuccess: () => 
 
   const handleLogin = async () => {
     if (!email || !password) return;
-    
+
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
 
     if (error) {
-      Alert.alert('Error', error.message);
-    } else {
-      onLoginSuccess();
+      Alert.alert('Error de acceso', error.message);
     }
+    // AuthContext detecta el cambio de sesión automáticamente
   };
 
   return (
