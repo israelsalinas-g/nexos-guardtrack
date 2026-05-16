@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import * as SQLite from 'expo-sqlite';
 import * as Crypto from 'expo-crypto';
+import { addToQueue } from '@/lib/queue';
 
 export interface Round {
   id: string;
@@ -18,8 +19,6 @@ export function useRound() {
   const loadActiveRound = useCallback(async () => {
     try {
       const db = await SQLite.openDatabaseAsync('guardtrack.db');
-      
-      // Check for active round in local DB
       const round = await db.getFirstAsync<Round>(
         'SELECT * FROM rondas_local WHERE estado = ?',
         ['en_curso']
@@ -27,8 +26,6 @@ export function useRound() {
 
       if (round) {
         setActiveRound(round);
-        
-        // Load scanned points for this round
         const scans = await db.getAllAsync<{ punto_id: string }>(
           'SELECT punto_id FROM escaneos_local WHERE ronda_id = ?',
           [round.id]
@@ -45,83 +42,71 @@ export function useRound() {
     }
   }, []);
 
-  const startRound = async (turnoId: string, establecimientoId: string) => {
-    try {
-      const db = await SQLite.openDatabaseAsync('guardtrack.db');
-      const roundId = Crypto.randomUUID();
-      const startTime = Date.now();
+  const startRound = async (turnoId: string, establecimientoId: string): Promise<string> => {
+    const db = await SQLite.openDatabaseAsync('guardtrack.db');
+    const roundId = Crypto.randomUUID();
+    const startTime = Date.now();
 
-      await db.runAsync(
-        'INSERT INTO rondas_local (id, turno_id, establecimiento_id, inicio_real, estado, sincronizado) VALUES (?, ?, ?, ?, ?, ?)',
-        [roundId, turnoId, establecimientoId, startTime, 'en_curso', 0]
-      );
+    await db.runAsync(
+      'INSERT INTO rondas_local (id, turno_id, establecimiento_id, inicio_real, estado, sincronizado) VALUES (?, ?, ?, ?, ?, ?)',
+      [roundId, turnoId, establecimientoId, startTime, 'en_curso', 0]
+    );
+    await addToQueue('ronda', roundId);
 
-      setActiveRound({
-        id: roundId,
-        turno_id: turnoId,
-        establecimiento_id: establecimientoId,
-        inicio_real: startTime,
-        estado: 'en_curso'
-      });
-      setScannedPoints([]);
-      return roundId;
-    } catch (error) {
-      console.error('Error starting round:', error);
-      throw error;
-    }
+    setActiveRound({ id: roundId, turno_id: turnoId, establecimiento_id: establecimientoId, inicio_real: startTime, estado: 'en_curso' });
+    setScannedPoints([]);
+    return roundId;
   };
 
-  const saveScan = async (pointId: string) => {
-    if (!activeRound) return;
-    
-    try {
-      const db = await SQLite.openDatabaseAsync('guardtrack.db');
-      const scanId = Crypto.randomUUID();
-      const timestamp = Date.now();
+  const saveScan = async (
+    pointId: string,
+    lat?: number | null,
+    lng?: number | null,
+    fotoPath?: string | null
+  ): Promise<string> => {
+    if (!activeRound) throw new Error('No active round');
 
-      await db.runAsync(
-        'INSERT INTO escaneos_local (id, ronda_id, punto_id, timestamp, sincronizado) VALUES (?, ?, ?, ?, ?)',
-        [scanId, activeRound.id, pointId, timestamp, 0]
-      );
+    const db = await SQLite.openDatabaseAsync('guardtrack.db');
+    const scanId = Crypto.randomUUID();
+    const timestamp = Date.now();
 
-      setScannedPoints(prev => [...prev, pointId]);
-    } catch (error) {
-      console.error('Error saving scan:', error);
-      throw error;
-    }
+    await db.runAsync(
+      'INSERT INTO escaneos_local (id, ronda_id, punto_id, timestamp, lat, lng, foto_path, sincronizado) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [scanId, activeRound.id, pointId, timestamp, lat ?? null, lng ?? null, fotoPath ?? null, 0]
+    );
+    await addToQueue('escaneo', scanId);
+
+    setScannedPoints(prev => [...prev, pointId]);
+    return scanId;
   };
 
   const finishRound = async () => {
     if (!activeRound) return;
 
-    try {
-      const db = await SQLite.openDatabaseAsync('guardtrack.db');
-      const endTime = Date.now();
+    const db = await SQLite.openDatabaseAsync('guardtrack.db');
+    const endTime = Date.now();
 
-      await db.runAsync(
-        'UPDATE rondas_local SET estado = ?, fin_real = ?, sincronizado = 0 WHERE id = ?',
-        ['completada', endTime, activeRound.id]
-      );
+    await db.runAsync(
+      'UPDATE rondas_local SET estado = ?, fin_real = ?, sincronizado = 0 WHERE id = ?',
+      ['completada', endTime, activeRound.id]
+    );
+    await addToQueue('ronda', activeRound.id);
 
-      setActiveRound(null);
-      setScannedPoints([]);
-    } catch (error) {
-      console.error('Error finishing round:', error);
-      throw error;
-    }
+    setActiveRound(null);
+    setScannedPoints([]);
   };
 
   useEffect(() => {
     loadActiveRound();
   }, [loadActiveRound]);
 
-  return { 
-    activeRound, 
-    scannedPoints, 
-    loading, 
-    startRound, 
-    saveScan, 
+  return {
+    activeRound,
+    scannedPoints,
+    loading,
+    startRound,
+    saveScan,
     finishRound,
-    refresh: loadActiveRound 
+    refresh: loadActiveRound,
   };
 }

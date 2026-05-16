@@ -7,8 +7,9 @@ import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import ScannerScreen from './ScannerScreen';
-import { useSync } from '../hooks/useSync';
+import { useNetSync } from '../hooks/useNetSync';
 import { useRound } from '../hooks/useRound';
+import { SyncStatusBar } from '../components/SyncStatusBar';
 import type { GuardNavProp } from '../navigation/types';
 
 interface Assignment {
@@ -35,7 +36,7 @@ export default function MainDashboard() {
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [assignment, setAssignment] = useState<Assignment | null>(null);
   const [loadingAssignment, setLoadingAssignment] = useState(true);
-  const { isSyncing, syncData } = useSync();
+  const { isSyncing, pendingCount, failedCount, syncNow } = useNetSync();
   const { activeRound, scannedPoints, startRound, saveScan, finishRound, loading: loadingRound } = useRound();
 
   useEffect(() => {
@@ -113,7 +114,7 @@ export default function MainDashboard() {
 
     try {
       await startRound(assignment.turno.id, assignment.turno.establecimiento.id);
-      syncData(); // Try to sync round start
+      syncNow(); // Try to sync round start
     } catch (error) {
       Alert.alert('Error', 'No se pudo iniciar la ronda.');
     }
@@ -139,7 +140,7 @@ export default function MainDashboard() {
 
       await saveScan(point.id);
       Alert.alert('Éxito', `Punto detectado: ${point.nombre}`);
-      syncData(); 
+      syncNow(); 
     } catch (error) {
       console.error('Scan Error:', error);
       Alert.alert('Error', 'No se pudo procesar el escaneo.');
@@ -156,7 +157,7 @@ export default function MainDashboard() {
           text: 'Finalizar', 
           onPress: async () => {
             await finishRound();
-            syncData();
+            syncNow();
           } 
         }
       ]
@@ -250,9 +251,8 @@ export default function MainDashboard() {
       </View>
 
       <View style={styles.footer}>
-        <Text style={styles.footerText}>
-          {isSyncing ? 'Sincronizando...' : 'Datos Sincronizados'} • v1.0.0
-        </Text>
+        <SyncStatusBar isSyncing={isSyncing} pendingCount={pendingCount} failedCount={failedCount} />
+        <Text style={styles.footerText}>v1.0.0</Text>
       </View>
 
       {/* Scanner Modal */}
