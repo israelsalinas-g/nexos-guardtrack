@@ -22,7 +22,7 @@ async function createAuthClient() {
   );
 }
 
-export async function login(formData: FormData) {
+export async function login(_prevState: unknown, formData: FormData) {
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
 

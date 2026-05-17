@@ -1,10 +1,70 @@
-import { ArrowLeft, Plus, MoveVertical, QrCode } from 'lucide-react';
+import { Suspense } from 'react';
+import { ArrowLeft, Plus, QrCode, MapPin } from 'lucide-react';
 import Link from 'next/link';
 import { getEstablishmentById, getControlPoints } from '@/lib/actions/establishments';
 import { QRDownloadButton } from '@/components/QRGenerator';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface PageProps {
   params: Promise<{ id: string }>;
+}
+
+async function ControlPointsList({ id }: { id: string }) {
+  const controlPoints = await getControlPoints(id);
+
+  if (controlPoints.length === 0) {
+    return (
+      <div className="flex flex-col items-center gap-3 py-12 text-muted-foreground rounded-xl border border-dashed border-border">
+        <QrCode size={36} className="opacity-30" />
+        <p className="text-sm font-medium">Sin puntos de control</p>
+        <p className="text-xs">Agrega el primero con el botón de arriba.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      {controlPoints.map((point, index) => (
+        <div
+          key={point.id}
+          className="flex items-center gap-3 p-3.5 rounded-xl bg-secondary/30 border border-border/30 hover:border-border/60 transition-colors"
+        >
+          <div className="w-9 h-9 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0">
+            <QrCode size={18} className="text-primary" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-sm">{point.nombre ?? point.name}</p>
+            <p className="text-xs text-muted-foreground font-mono">
+              {point.qr_token}
+            </p>
+          </div>
+          <Badge variant="outline" className="text-primary border-primary/30 text-xs flex-shrink-0">
+            #{index + 1}
+          </Badge>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ControlPointsSkeleton() {
+  return (
+    <div className="flex flex-col gap-2">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <div key={i} className="flex items-center gap-3 p-3.5 rounded-xl bg-secondary/30">
+          <Skeleton className="h-9 w-9 rounded-xl" />
+          <div className="flex-1 space-y-1.5">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-3 w-24" />
+          </div>
+          <Skeleton className="h-5 w-8 rounded-full" />
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export default async function EstablishmentDetailPage({ params }: PageProps) {
@@ -12,88 +72,97 @@ export default async function EstablishmentDetailPage({ params }: PageProps) {
   const establishment = await getEstablishmentById(id);
   const controlPoints = await getControlPoints(id);
 
+  const nombre = establishment.nombre ?? establishment.name ?? 'Establecimiento';
+  const direccion = establishment.direccion ?? establishment.address ?? '';
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
-      <header>
-        <Link href="/admin/establishments" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--muted)', fontSize: '0.875rem', marginBottom: '1rem' }}>
-          <ArrowLeft size={16} />
+    <div className="flex flex-col gap-6">
+      {/* Back + header */}
+      <div>
+        <Link
+          href="/dashboard/establishments"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
+        >
+          <ArrowLeft size={15} />
           Volver a Establecimientos
         </Link>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div>
-            <h2 style={{ fontSize: '2rem' }}>{establishment.name}</h2>
-            <p className="muted">{establishment.address}</p>
+            <div className="flex items-center gap-2 mb-1">
+              <MapPin size={18} className="text-primary" />
+              <h1 className="text-3xl font-bold tracking-tight">{nombre}</h1>
+            </div>
+            {direccion && (
+              <p className="text-sm text-muted-foreground">{direccion}</p>
+            )}
           </div>
-          <div style={{ display: 'flex', gap: '1rem' }}>
+
+          <div className="flex items-center gap-3">
             {controlPoints.length > 0 && (
-              <QRDownloadButton 
-                establishmentName={establishment.name} 
-                points={controlPoints.map(p => ({ name: p.name, qr_token: p.qr_token }))} 
+              <QRDownloadButton
+                establishmentName={nombre}
+                points={controlPoints.map((p) => ({
+                  name: p.nombre ?? p.name ?? '',
+                  qr_token: p.qr_token,
+                }))}
               />
             )}
-            <button className="button-primary">
-              <Plus size={20} />
+            <Button className="rounded-xl gap-2 active:scale-95 transition-all">
+              <Plus size={16} />
               Agregar Punto
-            </button>
+            </Button>
           </div>
         </div>
-      </header>
+      </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '2rem' }}>
-        {/* Control Points List */}
-        <div className="glass" style={{ padding: '2rem' }}>
-          <h4 style={{ marginBottom: '1.5rem', fontSize: '1.25rem' }}>Puntos de Control</h4>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {controlPoints.map((point, index) => (
-              <div key={point.id} style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '1rem', 
-                padding: '1rem', 
-                background: 'rgba(255,255,255,0.03)', 
-                borderRadius: '12px',
-                border: '1px solid var(--border)'
-              }}>
-                <div style={{ cursor: 'grab', color: 'var(--muted)' }}>
-                  <MoveVertical size={18} />
-                </div>
-                <div style={{ width: '40px', height: '40px', background: 'rgba(56, 189, 248, 0.1)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <QrCode size={20} color="#38bdf8" />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <p style={{ fontWeight: '600' }}>{point.name}</p>
-                  <p style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>Token: {point.qr_token}</p>
-                </div>
-                <div style={{ fontSize: '0.875rem', fontWeight: '700', color: 'var(--primary)' }}>
-                  #{index + 1}
-                </div>
-              </div>
-            ))}
-
-            {controlPoints.length === 0 && (
-              <div style={{ textAlign: 'center', padding: '3rem', border: '2px dashed var(--border)', borderRadius: '16px' }}>
-                <p className="muted">No hay puntos de control configurados.</p>
-              </div>
-            )}
-          </div>
+      {/* Main grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Control Points */}
+        <div className="lg:col-span-2">
+          <Card className="rounded-2xl border-border/50 bg-card">
+            <CardHeader className="px-6 py-4 border-b border-border/50">
+              <CardTitle className="text-base font-semibold">Puntos de Control</CardTitle>
+            </CardHeader>
+            <CardContent className="p-4">
+              <Suspense fallback={<ControlPointsSkeleton />}>
+                <ControlPointsList id={id} />
+              </Suspense>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Quick Config / Shifts Summary */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          <div className="glass" style={{ padding: '1.5rem' }}>
-            <h4 style={{ marginBottom: '1rem' }}>Configuración de Turnos</h4>
-            <p style={{ fontSize: '0.875rem', color: 'var(--muted)', marginBottom: '1.5rem' }}>
-              Define los horarios en los que se esperan rondas obligatorias.
-            </p>
-            <button className="button-primary" style={{ width: '100%', background: 'var(--secondary)', border: '1px solid var(--border)' }}>
-              Gestionar Turnos
-            </button>
-          </div>
+        {/* Sidebar */}
+        <div className="flex flex-col gap-4">
+          <Card className="rounded-2xl border-border/50 bg-card">
+            <CardContent className="p-5">
+              <h3 className="font-semibold text-sm mb-1">Configuración de Turnos</h3>
+              <p className="text-xs text-muted-foreground mb-4">
+                Define los horarios en los que se esperan rondas obligatorias.
+              </p>
+              <Button
+                asChild
+                variant="secondary"
+                className="w-full rounded-xl active:scale-95 transition-all"
+              >
+                <Link href={`/dashboard/shifts?establishment=${id}`}>
+                  Gestionar Turnos
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
 
-          <div className="glass" style={{ padding: '1.5rem', borderLeft: '4px solid #10b981' }}>
-            <h5 style={{ color: '#10b981', marginBottom: '0.5rem' }}>Estado del Sitio</h5>
-            <p style={{ fontSize: '0.875rem' }}>Última ronda completada hace 45 minutos.</p>
-          </div>
+          <Card className="rounded-2xl border-emerald-500/20 bg-emerald-500/5">
+            <CardContent className="p-5">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <h3 className="font-semibold text-sm text-emerald-400">Estado del Sitio</h3>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Última ronda completada hace 45 minutos.
+              </p>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

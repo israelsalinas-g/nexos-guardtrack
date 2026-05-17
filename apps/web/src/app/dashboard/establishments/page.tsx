@@ -1,74 +1,131 @@
-import { Plus, MapPin, QrCode, Trash2, ChevronRight } from 'lucide-react';
-import { getEstablishments } from '@/lib/actions/establishments';
+import { Suspense } from 'react';
+import { MapPin, QrCode, ChevronRight, Building2 } from 'lucide-react';
 import Link from 'next/link';
+import { getEstablishments } from '@/lib/actions/establishments';
+import { CreateEstablishmentDialog } from '@/components/establishments/CreateEstablishmentDialog';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
 
-export default async function EstablishmentsPage() {
+async function EstablishmentsGrid() {
   const establishments = await getEstablishments();
 
+  if (establishments.length === 0) {
+    return (
+      <div className="flex flex-col items-center gap-4 py-20 text-muted-foreground rounded-2xl border border-dashed border-border">
+        <Building2 size={48} className="opacity-30" />
+        <p className="text-lg font-medium text-foreground">Sin establecimientos</p>
+        <p className="text-sm">Crea el primero con el botón de arriba.</p>
+      </div>
+    );
+  }
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+      {establishments.map((est) => {
+        const puntosCount = (est.puntos_count as unknown as { count: number }[])?.[0]?.count ?? 0;
+        return (
+          <Card
+            key={est.id}
+            className="rounded-2xl border-border/50 bg-card hover:border-primary/30 transition-colors group"
+          >
+            <CardContent className="p-5 flex flex-col gap-4">
+              {/* Header */}
+              <div className="flex items-start gap-3">
+                <div className="p-2.5 rounded-xl bg-primary/10 flex-shrink-0">
+                  <MapPin size={18} className="text-primary" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-semibold truncate">{est.nombre}</h3>
+                  <p className="text-sm text-muted-foreground truncate">
+                    {est.ciudad ? `${est.ciudad} — ` : ''}{est.direccion || 'Sin dirección'}
+                  </p>
+                </div>
+                <Badge
+                  variant="outline"
+                  className={est.activo
+                    ? 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10 flex-shrink-0'
+                    : 'text-muted-foreground flex-shrink-0'}
+                >
+                  {est.activo ? 'Activo' : 'Inactivo'}
+                </Badge>
+              </div>
+
+              {/* Stats row */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl bg-secondary/50 px-3 py-2.5">
+                  <p className="text-xs text-muted-foreground mb-1">Puntos de Control</p>
+                  <div className="flex items-center gap-1.5">
+                    <QrCode size={14} className="text-emerald-400" />
+                    <span className="font-semibold text-sm">{puntosCount} punto{puntosCount !== 1 ? 's' : ''}</span>
+                  </div>
+                </div>
+                <div className="rounded-xl bg-secondary/50 px-3 py-2.5">
+                  <p className="text-xs text-muted-foreground mb-1">Supervisor</p>
+                  <p className="font-semibold text-sm truncate">
+                    {(est.supervisor as unknown as { nombre: string } | null)?.nombre ?? '—'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Action */}
+              <Button asChild variant="secondary" className="w-full rounded-xl justify-between group-hover:bg-secondary/80 transition-colors">
+                <Link href={`/dashboard/establishments/${est.id}`}>
+                  Configurar Puntos y Turnos
+                  <ChevronRight size={16} />
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
+function EstablishmentsGridSkeleton() {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <Card key={i} className="rounded-2xl border-border/50 bg-card">
+          <CardContent className="p-5 flex flex-col gap-4">
+            <div className="flex items-start gap-3">
+              <Skeleton className="h-10 w-10 rounded-xl flex-shrink-0" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-4 w-36" />
+                <Skeleton className="h-3 w-28" />
+              </div>
+              <Skeleton className="h-6 w-16 rounded-full" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Skeleton className="h-14 rounded-xl" />
+              <Skeleton className="h-14 rounded-xl" />
+            </div>
+            <Skeleton className="h-9 w-full rounded-xl" />
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+export default function EstablishmentsPage() {
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 style={{ fontSize: '1.875rem' }}>Establecimientos</h2>
-          <p className="muted">Gestiona los locales y sus puntos de control</p>
+          <h1 className="text-3xl font-bold tracking-tight">Establecimientos</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Gestiona los locales y sus puntos de control
+          </p>
         </div>
-        <button className="button-primary">
-          <Plus size={20} />
-          Nuevo Establecimiento
-        </button>
+        <CreateEstablishmentDialog />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '1.5rem' }}>
-        {establishments.map((est) => (
-          <div key={est.id} className="glass" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                <div style={{ padding: '0.75rem', background: 'rgba(56, 189, 248, 0.1)', borderRadius: '12px' }}>
-                  <MapPin color="#38bdf8" />
-                </div>
-                <div>
-                  <h4 style={{ fontSize: '1.125rem' }}>{est.nombre}</h4>
-                  <p className="muted" style={{ fontSize: '0.875rem' }}>{est.direccion || 'Sin dirección'}</p>
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer' }}>
-                  <Trash2 size={18} />
-                </button>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: '1rem' }}>
-              <div style={{ flex: 1, padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
-                <p style={{ fontSize: '0.75rem', color: 'var(--muted)', marginBottom: '0.25rem' }}>Puntos de Control</p>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <QrCode size={16} color="#10b981" />
-                  <span style={{ fontWeight: '600' }}>8 Puntos</span>
-                </div>
-              </div>
-              <div style={{ flex: 1, padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
-                <p style={{ fontSize: '0.75rem', color: 'var(--muted)', marginBottom: '0.25rem' }}>Guardias</p>
-                <span style={{ fontWeight: '600' }}>3 Activos</span>
-              </div>
-            </div>
-
-            <Link 
-              href={`/dashboard/establishments/${est.id}`}
-              className="button-primary" 
-              style={{ justifyContent: 'center', background: 'var(--secondary)', border: '1px solid var(--border)' }}
-            >
-              Configurar Puntos y Turnos
-              <ChevronRight size={18} />
-            </Link>
-          </div>
-        ))}
-
-        {establishments.length === 0 && (
-          <div className="glass" style={{ padding: '4rem', gridColumn: '1 / -1', textAlign: 'center' }}>
-            <p className="muted">No hay establecimientos registrados.</p>
-          </div>
-        )}
-      </div>
+      <Suspense fallback={<EstablishmentsGridSkeleton />}>
+        <EstablishmentsGrid />
+      </Suspense>
     </div>
   );
 }
