@@ -27,8 +27,8 @@ export default async function EstablishmentsPage() {
                   <MapPin color="#38bdf8" />
                 </div>
                 <div>
-                  <h4 style={{ fontSize: '1.125rem' }}>{est.name}</h4>
-                  <p className="muted" style={{ fontSize: '0.875rem' }}>{est.address || 'Sin dirección'}</p>
+                  <h4 style={{ fontSize: '1.125rem' }}>{est.nombre}</h4>
+                  <p className="muted" style={{ fontSize: '0.875rem' }}>{est.direccion || 'Sin dirección'}</p>
                 </div>
               </div>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -53,7 +53,7 @@ export default async function EstablishmentsPage() {
             </div>
 
             <Link 
-              href={`/admin/establishments/${est.id}`}
+              href={`/dashboard/establishments/${est.id}`}
               className="button-primary" 
               style={{ justifyContent: 'center', background: 'var(--secondary)', border: '1px solid var(--border)' }}
             >

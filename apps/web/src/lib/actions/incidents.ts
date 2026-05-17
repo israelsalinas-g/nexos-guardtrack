@@ -54,5 +54,5 @@ export async function updateIncidentStatus(id: string, estado: 'nuevo' | 'revisa
 
   if (error) throw error;
 
-  revalidatePath('/admin/incidents');
+  revalidatePath('/dashboard/incidents');
 }

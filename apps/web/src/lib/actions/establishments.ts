@@ -22,7 +22,7 @@ export async function createEstablishment(_prevState: unknown, formData: FormDat
 
   if (error) return { success: false, error: error.message };
 
-  revalidatePath('/admin/establishments');
+  revalidatePath('/dashboard/establishments');
   return { success: true, data };
 }
 
@@ -77,5 +77,5 @@ export async function deleteEstablishment(id: string) {
     .eq('id', id);
 
   if (error) throw new Error(error.message);
-  revalidatePath('/admin/establishments');
+  revalidatePath('/dashboard/establishments');
 }
