@@ -96,10 +96,18 @@ export default function MainDashboard() {
         `)
         .eq('guardia_id', user.id)
         .eq('activo', true)
-        .single();
+        .maybeSingle();
 
-      if (error) throw error;
-      setAssignment(data as unknown as Assignment);
+      if (error) {
+        console.error('Error fetching assignment from Supabase:', error);
+        return;
+      }
+      
+      if (data) {
+        setAssignment(data as unknown as Assignment);
+      } else {
+        setAssignment(null);
+      }
     } catch (error) {
       console.error('Error fetching assignment:', error);
     } finally {
