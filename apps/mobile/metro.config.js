@@ -9,7 +9,7 @@ const config = getDefaultConfig(projectRoot);
 // 1. Watch all files in the monorepo workspace (including packages/shared)
 config.watchFolders = [workspaceRoot];
 
-// 2. Map standard singletons to the local node_modules to prevent multiple instances
+// 2. Map standard singletons to their resolved package paths using Node's resolution algorithm
 const singletons = [
   'react',
   'react-dom',
@@ -19,11 +19,17 @@ const singletons = [
   '@react-navigation/stack',
   'react-native-safe-area-context',
   'react-native-screens',
-  'react-native-gesture-handler'
+  'react-native-gesture-handler',
+  'color-string'
 ];
 
 config.resolver.extraNodeModules = singletons.reduce((acc, name) => {
-  acc[name] = path.resolve(projectRoot, 'node_modules', name);
+  try {
+    acc[name] = path.dirname(require.resolve(`${name}/package.json`, { paths: [projectRoot] }));
+  } catch (err) {
+    // Fallback if package.json cannot be resolved directly
+    acc[name] = path.resolve(projectRoot, 'node_modules', name);
+  }
   return acc;
 }, {});
 
