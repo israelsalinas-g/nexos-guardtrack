@@ -79,3 +79,53 @@ export async function deleteEstablishment(id: string) {
   if (error) throw new Error(error.message);
   revalidatePath('/dashboard/establishments');
 }
+
+export async function getEstablishmentsSimple() {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from('establecimientos')
+    .select('id, nombre')
+    .eq('activo', true)
+    .order('nombre');
+
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+export async function createControlPoint(_prevState: unknown, formData: FormData) {
+  const supabase = await createSupabaseServerClient();
+
+  const nombre = formData.get('nombre') as string;
+  const descripcion = formData.get('descripcion') as string;
+  const establecimiento_id = formData.get('establecimiento_id') as string;
+
+  if (!nombre || !establecimiento_id) {
+    return { success: false, error: 'El nombre y el establecimiento son requeridos.' };
+  }
+
+  const qr_token = crypto.randomUUID();
+
+  const { error } = await supabase
+    .from('puntos_control')
+    .insert([{ nombre, descripcion: descripcion || null, establecimiento_id, qr_token }]);
+
+  if (error) return { success: false, error: error.message };
+
+  revalidatePath(`/dashboard/establishments/${establecimiento_id}`);
+  revalidatePath('/dashboard/establishments');
+  return { success: true };
+}
+
+export async function deleteControlPoint(id: string, establishmentId: string) {
+  const supabase = await createSupabaseServerClient();
+
+  const { error } = await supabase
+    .from('puntos_control')
+    .delete()
+    .eq('id', id);
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/dashboard/establishments/${establishmentId}`);
+  revalidatePath('/dashboard/establishments');
+}

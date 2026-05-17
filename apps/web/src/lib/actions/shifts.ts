@@ -59,6 +59,7 @@ export async function createShift(_prevState: unknown, formData: FormData) {
   if (error) return { success: false, error: error.message };
 
   revalidatePath('/dashboard/establishments');
+  revalidatePath('/dashboard/shifts');
   return { success: true, data };
 }
 
@@ -68,4 +69,5 @@ export async function deleteShift(id: string) {
   const { error } = await supabase.from('turnos').delete().eq('id', id);
   if (error) throw new Error(error.message);
   revalidatePath('/dashboard/establishments');
+  revalidatePath('/dashboard/shifts');
 }

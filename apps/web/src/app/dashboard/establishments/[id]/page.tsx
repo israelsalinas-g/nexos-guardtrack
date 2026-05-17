@@ -1,8 +1,9 @@
 import { Suspense } from 'react';
-import { ArrowLeft, Plus, QrCode, MapPin } from 'lucide-react';
+import { ArrowLeft, QrCode, MapPin, Trash2 } from 'lucide-react';
 import Link from 'next/link';
-import { getEstablishmentById, getControlPoints } from '@/lib/actions/establishments';
+import { getEstablishmentById, getControlPoints, deleteControlPoint } from '@/lib/actions/establishments';
 import { QRDownloadButton } from '@/components/QRGenerator';
+import { CreateControlPointDialog } from '@/components/establishments/CreateControlPointDialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -30,13 +31,13 @@ async function ControlPointsList({ id }: { id: string }) {
       {controlPoints.map((point, index) => (
         <div
           key={point.id}
-          className="flex items-center gap-3 p-3.5 rounded-xl bg-secondary/30 border border-border/30 hover:border-border/60 transition-colors"
+          className="flex items-center gap-3 p-3.5 rounded-xl bg-secondary/30 border border-border/30 hover:border-border/60 transition-colors group"
         >
           <div className="w-9 h-9 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0">
             <QrCode size={18} className="text-primary" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-semibold text-sm">{point.nombre ?? point.name}</p>
+            <p className="font-semibold text-sm">{point.nombre ?? (point as { name?: string }).name}</p>
             <p className="text-xs text-muted-foreground font-mono">
               {point.qr_token}
             </p>
@@ -44,6 +45,22 @@ async function ControlPointsList({ id }: { id: string }) {
           <Badge variant="outline" className="text-primary border-primary/30 text-xs flex-shrink-0">
             #{index + 1}
           </Badge>
+          <form
+            action={async () => {
+              'use server';
+              await deleteControlPoint(point.id, id);
+            }}
+          >
+            <Button
+              type="submit"
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-rose-400 flex-shrink-0"
+            >
+              <Trash2 size={13} />
+              <span className="sr-only">Eliminar</span>
+            </Button>
+          </form>
         </div>
       ))}
     </div>
@@ -72,8 +89,8 @@ export default async function EstablishmentDetailPage({ params }: PageProps) {
   const establishment = await getEstablishmentById(id);
   const controlPoints = await getControlPoints(id);
 
-  const nombre = establishment.nombre ?? establishment.name ?? 'Establecimiento';
-  const direccion = establishment.direccion ?? establishment.address ?? '';
+  const nombre = establishment.nombre ?? (establishment as { name?: string }).name ?? 'Establecimiento';
+  const direccion = establishment.direccion ?? (establishment as { address?: string }).address ?? '';
 
   return (
     <div className="flex flex-col gap-6">
@@ -103,15 +120,12 @@ export default async function EstablishmentDetailPage({ params }: PageProps) {
               <QRDownloadButton
                 establishmentName={nombre}
                 points={controlPoints.map((p) => ({
-                  name: p.nombre ?? p.name ?? '',
+                  name: p.nombre ?? (p as { name?: string }).name ?? '',
                   qr_token: p.qr_token,
                 }))}
               />
             )}
-            <Button className="rounded-xl gap-2 active:scale-95 transition-all">
-              <Plus size={16} />
-              Agregar Punto
-            </Button>
+            <CreateControlPointDialog establishmentId={id} />
           </div>
         </div>
       </div>
