@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { Alert } from 'react-native';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { initDatabase } from '@/lib/database';
@@ -18,42 +19,65 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchUserProfile = async (userId: string): Promise<AppUser | null> => {
-    const { data, error } = await supabase
-      .from('usuarios')
-      .select('id, nombre, rol')
-      .eq('id', userId)
-      .single();
+  const fetchUserProfile = async (userId: string, email: string): Promise<AppUser | null> => {
+    try {
+      const { data, error } = await supabase
+        .from('usuarios')
+        .select('id, nombre, rol')
+        .eq('id', userId)
+        .single();
 
-    if (error || !data) return null;
+      if (error) {
+        console.error('Error fetching user profile from Supabase:', error);
+        return null;
+      }
+      if (!data) {
+        console.error('No user profile found in usuarios table for ID:', userId);
+        return null;
+      }
 
-    return {
-      id: data.id,
-      nombre: data.nombre,
-      email: session?.user?.email ?? '',
-      rol: data.rol,
-    };
+      return {
+        id: data.id,
+        nombre: data.nombre,
+        email: email,
+        rol: data.rol,
+      };
+    } catch (err) {
+      console.error('Unexpected error fetching user profile:', err);
+      return null;
+    }
   };
 
   useEffect(() => {
     let mounted = true;
 
     const initialize = async () => {
-      await initDatabase();
+      try {
+        await initDatabase();
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
 
-      const { data: { session: currentSession } } = await supabase.auth.getSession();
+        if (!mounted) return;
 
-      if (!mounted) return;
-
-      if (currentSession?.user) {
-        const profile = await fetchUserProfile(currentSession.user.id);
+        if (currentSession?.user) {
+          const profile = await fetchUserProfile(currentSession.user.id, currentSession.user.email ?? '');
+          if (mounted) {
+            if (profile) {
+              setSession(currentSession);
+              setUser(profile);
+            } else {
+              await supabase.auth.signOut();
+              setSession(null);
+              setUser(null);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Unexpected error during AuthContext initialize:', err);
+      } finally {
         if (mounted) {
-          setSession(currentSession);
-          setUser(profile ? { ...profile, email: currentSession.user.email ?? '' } : null);
+          setLoading(false);
         }
       }
-
-      setLoading(false);
     };
 
     initialize();
@@ -61,13 +85,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
       if (!mounted) return;
 
-      setSession(newSession);
-
       if (newSession?.user) {
-        const profile = await fetchUserProfile(newSession.user.id);
-        setUser(profile ? { ...profile, email: newSession.user.email ?? '' } : null);
+        setLoading(true);
+        const profile = await fetchUserProfile(newSession.user.id, newSession.user.email ?? '');
+        if (mounted) {
+          if (profile) {
+            setSession(newSession);
+            setUser(profile);
+          } else {
+            await supabase.auth.signOut();
+            setSession(null);
+            setUser(null);
+            Alert.alert('Acceso Denegado', 'No se encontró un perfil de usuario válido.');
+          }
+          setLoading(false);
+        }
       } else {
-        setUser(null);
+        if (mounted) {
+          setSession(null);
+          setUser(null);
+          setLoading(false);
+        }
       }
     });
 
