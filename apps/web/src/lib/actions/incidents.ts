@@ -1,9 +1,11 @@
 'use server';
 
-import { supabase } from '@/lib/supabase';
+import { createSupabaseServerClient } from '@/lib/supabase';
 import { revalidatePath } from 'next/cache';
 
 export async function getIncidents() {
+  const supabase = await createSupabaseServerClient();
+
   const { data, error } = await supabase
     .from('incidentes')
     .select(`
@@ -32,11 +34,12 @@ interface IncidentUpdate {
 }
 
 export async function updateIncidentStatus(id: string, estado: 'nuevo' | 'revisado' | 'cerrado', notas: string = '') {
+  const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
-  
-  const updateData: IncidentUpdate = { 
+
+  const updateData: IncidentUpdate = {
     estado,
-    notas_cierre: notas 
+    notas_cierre: notas,
   };
 
   if (estado === 'cerrado') {
@@ -50,6 +53,6 @@ export async function updateIncidentStatus(id: string, estado: 'nuevo' | 'revisa
     .eq('id', id);
 
   if (error) throw error;
-  
+
   revalidatePath('/admin/incidents');
 }

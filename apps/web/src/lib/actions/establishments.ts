@@ -1,28 +1,41 @@
 'use server';
 
-import { supabase } from '@/lib/supabase';
-import { EstablishmentSchema, type Establishment } from '@guardtrack/shared';
+import { createSupabaseServerClient } from '@/lib/supabase';
 import { revalidatePath } from 'next/cache';
 
-export async function createEstablishment(data: Establishment) {
-  const validated = EstablishmentSchema.parse(data);
-  
-  const { data: result, error } = await supabase
+export async function createEstablishment(_prevState: unknown, formData: FormData) {
+  const supabase = await createSupabaseServerClient();
+
+  const nombre = formData.get('nombre') as string;
+  const direccion = formData.get('direccion') as string;
+  const ciudad = formData.get('ciudad') as string;
+
+  if (!nombre || nombre.length < 3) {
+    return { success: false, error: 'El nombre debe tener al menos 3 caracteres' };
+  }
+
+  const { data, error } = await supabase
     .from('establecimientos')
-    .insert([validated])
+    .insert([{ nombre, direccion: direccion || null, ciudad: ciudad || null }])
     .select()
     .single();
 
-  if (error) throw new Error(error.message);
-  
+  if (error) return { success: false, error: error.message };
+
   revalidatePath('/admin/establishments');
-  return result;
+  return { success: true, data };
 }
 
 export async function getEstablishments() {
+  const supabase = await createSupabaseServerClient();
+
   const { data, error } = await supabase
     .from('establecimientos')
-    .select('*')
+    .select(`
+      *,
+      supervisor:usuarios!establecimientos_supervisor_id_fkey(nombre),
+      puntos_count:puntos_control(count)
+    `)
     .order('created_at', { ascending: false });
 
   if (error) throw new Error(error.message);
@@ -30,6 +43,8 @@ export async function getEstablishments() {
 }
 
 export async function getEstablishmentById(id: string) {
+  const supabase = await createSupabaseServerClient();
+
   const { data, error } = await supabase
     .from('establecimientos')
     .select('*')
@@ -41,6 +56,8 @@ export async function getEstablishmentById(id: string) {
 }
 
 export async function getControlPoints(establishmentId: string) {
+  const supabase = await createSupabaseServerClient();
+
   const { data, error } = await supabase
     .from('puntos_control')
     .select('*')
@@ -52,6 +69,8 @@ export async function getControlPoints(establishmentId: string) {
 }
 
 export async function deleteEstablishment(id: string) {
+  const supabase = await createSupabaseServerClient();
+
   const { error } = await supabase
     .from('establecimientos')
     .delete()

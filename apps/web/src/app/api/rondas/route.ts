@@ -1,17 +1,18 @@
 import { NextResponse } from 'next/server';
-import { RoundSchema } from '@guardtrack/shared';
-import { supabase } from '@/lib/supabase';
+import { createSupabaseServerClient } from '@/lib/supabase';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    
-    // Validate with Zod
-    const validatedData = RoundSchema.parse(body);
 
+    if (!body.guardia_id || !body.turno_id) {
+      return NextResponse.json({ error: 'guardia_id y turno_id son requeridos' }, { status: 400 });
+    }
+
+    const supabase = await createSupabaseServerClient();
     const { data, error } = await supabase
-      .from('rounds')
-      .insert([validatedData])
+      .from('rondas')
+      .insert([body])
       .select()
       .single();
 
