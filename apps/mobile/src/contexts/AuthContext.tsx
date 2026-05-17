@@ -25,7 +25,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .from('usuarios')
         .select('id, nombre, rol')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.error('Error fetching user profile from Supabase:', error);
