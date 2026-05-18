@@ -8,7 +8,20 @@ type ActionResult = { success: boolean; error?: string };
 
 export async function getSupervisors() {
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('No autorizado');
+
+  const { data: profile } = await supabase
+    .from('usuarios')
+    .select('rol')
+    .eq('id', user.id)
+    .single();
+
+  if (!profile || profile.rol !== 'admin') {
+    throw new Error('No autorizado');
+  }
+
+  const { data, error } = await supabaseAdmin
     .from('usuarios')
     .select(`
       id, nombre, email, activo, created_at,
@@ -40,7 +53,7 @@ export async function createSupervisor(_prevState: ActionResult | null, formData
 
   const { error: insertError } = await supabaseAdmin
     .from('usuarios')
-    .insert({
+    .upsert({
       id: authData.user.id,
       nombre,
       email,
@@ -59,7 +72,20 @@ export async function createSupervisor(_prevState: ActionResult | null, formData
 
 export async function deactivateSupervisor(id: string): Promise<ActionResult> {
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: 'No autorizado' };
+
+  const { data: profile } = await supabase
+    .from('usuarios')
+    .select('rol')
+    .eq('id', user.id)
+    .single();
+
+  if (!profile || profile.rol !== 'admin') {
+    return { success: false, error: 'No autorizado' };
+  }
+
+  const { error } = await supabaseAdmin
     .from('usuarios')
     .update({ activo: false })
     .eq('id', id)

@@ -2,21 +2,35 @@
 
 import { revalidatePath } from 'next/cache';
 import { createSupabaseServerClient } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase-admin';
 
 type ActionResult = { success: boolean; error?: string };
 
 export async function getAssignments() {
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('No autorizado');
+
+  const { data: profile } = await supabase
+    .from('usuarios')
+    .select('rol')
+    .eq('id', user.id)
+    .single();
+
+  if (!profile || (profile.rol !== 'admin' && profile.rol !== 'supervisor')) {
+    throw new Error('No autorizado');
+  }
+
+  const { data, error } = await supabaseAdmin
     .from('asignaciones')
     .select(`
-      id, fecha_inicio, fecha_fin, activo, created_at,
+      id, fecha_inicio, fecha_fin, activo,
       guardia:usuarios!asignaciones_guardia_id_fkey(id, nombre, email),
       turno:turnos(id, nombre, hora_inicio, hora_fin,
         establecimiento:establecimientos(id, nombre)
       )
     `)
-    .order('created_at', { ascending: false });
+    .order('fecha_inicio', { ascending: false });
 
   if (error) throw new Error(error.message);
   return data ?? [];
@@ -33,7 +47,20 @@ export async function createAssignment(_prevState: ActionResult | null, formData
   }
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: 'No autorizado' };
+
+  const { data: profile } = await supabase
+    .from('usuarios')
+    .select('rol')
+    .eq('id', user.id)
+    .single();
+
+  if (!profile || (profile.rol !== 'admin' && profile.rol !== 'supervisor')) {
+    return { success: false, error: 'No autorizado' };
+  }
+
+  const { error } = await supabaseAdmin
     .from('asignaciones')
     .insert({
       guardia_id,
@@ -50,7 +77,20 @@ export async function createAssignment(_prevState: ActionResult | null, formData
 
 export async function deactivateAssignment(id: string): Promise<ActionResult> {
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: 'No autorizado' };
+
+  const { data: profile } = await supabase
+    .from('usuarios')
+    .select('rol')
+    .eq('id', user.id)
+    .single();
+
+  if (!profile || (profile.rol !== 'admin' && profile.rol !== 'supervisor')) {
+    return { success: false, error: 'No autorizado' };
+  }
+
+  const { error } = await supabaseAdmin
     .from('asignaciones')
     .update({ activo: false })
     .eq('id', id);
